@@ -79,14 +79,18 @@ def concat_audio(parts: list[str], out_path: str, music: str | None = None, musi
     return out_path
 
 
-def final_render(video: str, audio: str, ass_file: str, out_path: str, fonts_dir: str | None = None) -> str:
+def final_render(video: str, audio: str, ass_file: str, out_path: str, fonts_dir: str | None = None,
+                 duration: float | None = None, bar_color: str = "00E5FF") -> str:
+    """Burns in captions/headline and a progress bar along the top edge."""
     ass_arg = Path(ass_file).resolve().as_posix().replace(":", "\\:")
-    vf = f"ass='{ass_arg}'"
-    if fonts_dir:
-        vf = f"ass='{ass_arg}':fontsdir='{fonts_dir}'"
+    ass = f"ass='{ass_arg}'" + (f":fontsdir='{fonts_dir}'" if fonts_dir else "")
+    dur = duration or _duration(audio) or 40
+    filt = (f"[0:v]{ass}[v1];"
+            f"color=c=0x{bar_color}:s={W}x14:r={FPS}[bar];"
+            f"[v1][bar]overlay=x='-w+w*t/{dur:.3f}':y=0:shortest=1[v]")
     _run([
-        "ffmpeg", "-y", "-i", video, "-i", audio, "-vf", vf,
-        "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
+        "ffmpeg", "-y", "-i", video, "-i", audio, "-filter_complex", filt,
+        "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "160k",
         "-shortest", "-movflags", "+faststart", out_path,
     ])
