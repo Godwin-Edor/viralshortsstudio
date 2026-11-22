@@ -142,14 +142,23 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
                                                "text": script["scenes"][plan[j][0]]["text"]} for j in idx])
                 bad = 0
                 for j, v in zip(idx, verdict):
-                    if v["fits"] and v["safe"]:
-                        plan[j][3]["ok"] = True
-                    else:
-                        bad += 1
-                        if not v["safe"] or round_ == 1:
-                            plan[j][3] = None  # unsafe, or still off-topic after a swap: use the backdrop
-                        if round_ == 0:
-                            plan[j][3] = finder.find(plan[j][2][1:] + plan[j][2][:1], plan[j][1]) or plan[j][3]
+                    if v["safe"] and (v["fits"] or round_ == 1):
+                        plan[j][3]["ok"] = True  # fits, or safe but loosely matching after one swap: keep it
+                        continue
+                    bad += 1
+                    old = plan[j][3]
+                    if round_ == 0:  # try the next most literal search term
+                        plan[j][3] = finder.find(plan[j][2][1:] + plan[j][2][:1], plan[j][1])
+                    if round_ == 1 or not plan[j][3]:
+                        plan[j][3] = None
+                    if not plan[j][3]:
+                        # unsafe and no better match: use a generic science clip (still checked next round)
+                        plan[j][3] = finder.find(["science laboratory", "abstract science", "microscope"],
+                                                 plan[j][1])
+                        if plan[j][3] and round_ == 1:
+                            plan[j][3]["ok"] = True
+                    if plan[j][3] is old:
+                        plan[j][3] = None
                 print(f"Footage check round {round_ + 1}: {bad} of {len(idx)} clips replaced")
 
         for n, (i, each, terms, clip) in enumerate(plan):
