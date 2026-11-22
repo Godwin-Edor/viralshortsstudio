@@ -60,7 +60,11 @@ def _gemini(prompt: str, model, temperature: float = 0.9) -> dict:
     for m in dict.fromkeys(_models(model)):
         for attempt in range(3):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
-            r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=120)
+            try:
+                r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=90)
+            except requests.RequestException as e:  # slow or dropped connection: next model
+                last = f"{m}: {e}"
+                break
             if r.status_code == 200:
                 try:
                     text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
