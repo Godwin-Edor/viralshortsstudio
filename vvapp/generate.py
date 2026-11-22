@@ -45,6 +45,7 @@ def _offline_script(topic: str) -> dict:
     return {
         "topic": topic,
         "title": "Offline test video",
+        "hook_text": "This metal melts in your hand",
         "scenes": [
             {"text": "This metal melts in the palm of your hand.", "footage": ["metal"]},
             {"text": "It is called gallium, and it melts at about thirty degrees Celsius.", "footage": ["lab"]},
@@ -77,12 +78,24 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
             script = _offline_script(topic or "Gallium")
         else:
             from . import db
-            from .script_writer import pick_topic, write_script
+            from .script_writer import pick_topic, write_and_review
             past = db.recent_topics()
             topic = topic or _next_topic_from_file(cfg, past) or pick_topic(cfg, past)
             print(f"Topic: {topic}")
-            script = write_script(cfg, topic)
+            script, review = write_and_review(cfg, topic)
             script["topic"] = topic  # keep the exact topic text so topics.txt items are not reused
+            script["review"] = review
+            if not review.get("approve"):
+                # the AI reviewer would not pass it: record why, make nothing, post nothing
+                reason = "; ".join(review.get("problems") or []) or "did not pass the AI review"
+                db.insert_video({
+                    "topic": topic, "title": (script.get("title") or topic)[:95],
+                    "caption": script.get("caption", ""), "hashtags": script.get("hashtags", []),
+                    "script": script, "platforms": [], "status": "rejected",
+                    "results": {"review": {"ok": False, "error": f"AI review rejected it: {reason}"}},
+                })
+                print(f"Rejected by AI review: {reason}")
+                return {"status": "rejected", "topic": topic}
 
         # 2) voiceover per scene, collect word timings on one timeline
         audio_parts, all_words, scene_lengths = [], [], []
@@ -102,52 +115,73 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
         total = offset
         print(f"Narration length: {total:.1f} s")
 
-        # 3) footage: several quick shots per scene
+        # 3) footage: several quick shots per scene; the AI checks every clip fits and is family-friendly
         shots = []
         finder = None
+        plan = []  # [(scene_index, seconds, terms, clip)]
         if not offline:
             from .footage import FootageFinder, download
             finder = FootageFinder(fallback_query=cfg["niche"].split()[0])
         per_shot = float(cfg.get("seconds_per_shot", 3.2))
-        n = 0
         for i, (scene, length) in enumerate(zip(script["scenes"], scene_lengths)):
             count = max(1, math.ceil(length / per_shot))
             each = length / count
             for k in range(count):
-                out = str(work / f"shot_{n:03d}.mp4")
-                url = None
-                if finder:
-                    terms = scene.get("footage") or []
-                    terms = terms[k % len(terms):] + terms[:k % len(terms)] if terms else []
-                    url = finder.find(terms, each)
-                if url:
-                    raw = download(url, str(work / f"raw_{n:03d}.mp4"))
-                    make_shot(raw, each, out)
-                elif offline:
-                    subprocess.run(
-                        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
-                         f"testsrc2=s=1280x720:d={each + 1:.2f}:r=30", "-c:v", "libx264",
-                         str(work / f"raw_{n:03d}.mp4")], check=True)
-                    make_shot(str(work / f"raw_{n:03d}.mp4"), each, out)
-                else:
-                    color_shot(each, out)
-                shots.append(out)
-                n += 1
+                terms = scene.get("footage") or []
+                terms = terms[k % len(terms):] + terms[:k % len(terms)] if terms else []
+                clip = finder.find(terms, each) if finder else None
+                plan.append([i, each, terms, clip])
+
+        if finder and cfg.get("check_footage", True):
+            from .script_writer import check_footage
+            for round_ in range(2):  # check, swap the bad clips, check the swaps once more
+                idx = [j for j, p in enumerate(plan) if p[3] and p[3].get("thumb") and not p[3].get("ok")]
+                if not idx:
+                    break
+                verdict = check_footage(cfg, [{"thumb": plan[j][3]["thumb"],
+                                               "text": script["scenes"][plan[j][0]]["text"]} for j in idx])
+                bad = 0
+                for j, v in zip(idx, verdict):
+                    if v["fits"] and v["safe"]:
+                        plan[j][3]["ok"] = True
+                    else:
+                        bad += 1
+                        if not v["safe"] or round_ == 1:
+                            plan[j][3] = None  # unsafe, or still off-topic after a swap: use the backdrop
+                        if round_ == 0:
+                            plan[j][3] = finder.find(plan[j][2][1:] + plan[j][2][:1], plan[j][1]) or plan[j][3]
+                print(f"Footage check round {round_ + 1}: {bad} of {len(idx)} clips replaced")
+
+        for n, (i, each, terms, clip) in enumerate(plan):
+            out = str(work / f"shot_{n:03d}.mp4")
+            if clip:
+                raw = download(clip["link"], str(work / f"raw_{n:03d}.mp4"))
+                make_shot(raw, each, out)
+            elif offline:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+                     f"testsrc2=s=1280x720:d={each + 1:.2f}:r=30", "-c:v", "libx264",
+                     str(work / f"raw_{n:03d}.mp4")], check=True)
+                make_shot(str(work / f"raw_{n:03d}.mp4"), each, out)
+            else:
+                color_shot(each, out)
+            shots.append(out)
 
         # 4) assemble
         silent = concat_shots(shots, str(work / "silent.mp4"))
         audio = concat_audio(audio_parts, str(work / "audio.wav"), _pick_music(cfg), float(cfg.get("music_volume", 0.1)))
-        ass = build_ass(all_words, total, cfg, str(work / "captions.ass"))
+        ass = build_ass(all_words, total, cfg, str(work / "captions.ass"), hook_text=script.get("hook_text", ""))
         vid_id = str(uuid.uuid4())
         OUT_DIR.mkdir(exist_ok=True)
         final = final_render(silent, audio, ass, str(OUT_DIR / f"{vid_id}.mp4"),
-                             fonts_dir=str(ROOT / "fonts") if (ROOT / "fonts").exists() else None)
+                             fonts_dir=str(ROOT / "fonts") if (ROOT / "fonts").exists() else None,
+                             duration=total, bar_color=cfg.get("captions", {}).get("highlight_color", "00E5FF"))
         print(f"Rendered: {final}")
 
         if offline:
             return {"id": vid_id, "file": final, **script}
 
-        # 5) upload + add to approval queue
+        # 5) upload; with auto_post on, it goes straight to "approved" and post.py publishes it
         from . import db
         dest = f"{datetime.now(timezone.utc):%Y-%m-%d}/{vid_id}.mp4"
         url = db.upload_file(final, dest)
@@ -161,11 +195,12 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
             "duration_s": round(total, 1),
             "video_path": dest,
             "video_url": url,
-            "platforms": cfg.get("platforms_default", []),
-            "status": "pending",
+            "platforms": cfg.get("auto_platforms" if cfg.get("auto_post") else "platforms_default", []),
+            "status": "approved" if cfg.get("auto_post") else "pending",
+            "results": {"review": {"ok": True, "note": f"AI review passed (hook {script['review'].get('hook_score')}/10)"}},
         })
         Path(final).unlink(missing_ok=True)
-        print(f"Queued for approval: {row['id']} - {row['title']}")
+        print(f"{'Ready to post' if cfg.get('auto_post') else 'Queued for approval'}: {row['id']} - {row['title']}")
         return row
     finally:
         shutil.rmtree(work, ignore_errors=True)
