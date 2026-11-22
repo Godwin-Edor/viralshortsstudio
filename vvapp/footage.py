@@ -29,7 +29,11 @@ def _pixabay(query: str) -> list[dict]:
         if not good:
             continue
         good.sort(key=lambda f: (f["width"] > f["height"], abs(max(f["height"], f["width"]) - 1920)))
-        out.append({"id": f"pb{hit['id']}", "duration": hit.get("duration", 0), "link": good[0]["url"]})
+        thumb = good[0].get("thumbnail") or next((f.get("thumbnail") for f in files if f.get("thumbnail")), "")
+        if not thumb and hit.get("picture_id"):
+            thumb = f"https://i.vimeocdn.com/video/{hit['picture_id']}_640x360.jpg"
+        out.append({"id": f"pb{hit['id']}", "duration": hit.get("duration", 0), "link": good[0]["url"],
+                    "thumb": thumb, "tags": hit.get("tags", "")})
     return out
 
 
@@ -51,7 +55,8 @@ def _pexels(query: str) -> list[dict]:
                  if f.get("height") and f.get("width") and f["height"] >= 720 and f.get("file_type") == "video/mp4"]
         if files:
             files.sort(key=lambda f: (f["width"] > f["height"], abs(f["height"] - 1920)))
-            out.append({"id": f"px{v['id']}", "duration": v.get("duration", 0), "link": files[0]["link"]})
+            out.append({"id": f"px{v['id']}", "duration": v.get("duration", 0), "link": files[0]["link"],
+                        "thumb": v.get("image", ""), "tags": ""})
     return out
 
 
@@ -67,8 +72,8 @@ class FootageFinder:
         self.fallback_query = fallback_query
         self.cache: dict[str, list[dict]] = {}
 
-    def find(self, queries: list[str], min_seconds: float) -> str | None:
-        """Returns a download URL for a clip not yet used in this video."""
+    def find(self, queries: list[str], min_seconds: float) -> dict | None:
+        """Returns {link, thumb, id} for a clip not yet used in this video (most relevant first)."""
         for q in list(queries) + [self.fallback_query, "science", "abstract background"]:
             if q not in self.cache:
                 self.cache[q] = _search(q)
@@ -76,9 +81,9 @@ class FootageFinder:
             long_enough = [v for v in candidates if v.get("duration", 0) >= min_seconds]
             pool = long_enough or candidates
             if pool:
-                v = random.choice(pool[:8])
+                v = random.choice(pool[:3])  # top results are the most relevant; small shuffle for variety
                 self.used_ids.add(v["id"])
-                return v["link"]
+                return v
         return None
 
 
