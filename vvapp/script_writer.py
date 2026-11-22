@@ -1,6 +1,7 @@
 """Writes the video script with the free Gemini API."""
 import json
 import re
+import time
 
 import requests
 
@@ -43,18 +44,39 @@ Do NOT repeat or closely resemble any of these past topics:
 Return ONLY JSON: {{"topic": "..."}}"""
 
 
-def _gemini(prompt: str, model: str, temperature: float = 0.9) -> dict:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+def _models(model) -> list[str]:
+    if isinstance(model, (list, tuple)):
+        return list(model)
+    return [model, "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
+
+
+def _gemini(prompt: str, model, temperature: float = 0.9) -> dict:
+    """Tries each free model in turn; waits and retries when a model is busy (429/500/503)."""
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"},
     }
-    r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=120)
-    if r.status_code >= 400:
-        raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:500]}")
-    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
-    return json.loads(text)
+    last = ""
+    for m in dict.fromkeys(_models(model)):
+        for attempt in range(3):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
+            r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=120)
+            if r.status_code == 200:
+                try:
+                    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
+                    data = json.loads(text)
+                    print(f"Script model: {m}")
+                    return data
+                except Exception as e:  # odd reply: try again
+                    last = f"{m}: unreadable reply ({e})"
+                    continue
+            last = f"{m}: {r.status_code} {r.text[:200]}"
+            if r.status_code in (429, 500, 503):
+                time.sleep(10 * (attempt + 1))
+                continue
+            break  # 400/403/404: this model is not usable, try the next one
+    raise RuntimeError(f"Gemini failed on all models. Last error: {last}")
 
 
 def pick_topic(cfg: dict, past_topics: list[str]) -> str:
