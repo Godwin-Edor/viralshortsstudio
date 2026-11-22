@@ -3,6 +3,9 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
+import os
+
+from .. import db
 from ..config import env
 
 
@@ -10,7 +13,7 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
     yt_cfg = cfg.get("youtube", {})
     creds = Credentials(
         None,
-        refresh_token=env("YOUTUBE_REFRESH_TOKEN"),
+        refresh_token=os.environ.get("YOUTUBE_REFRESH_TOKEN") or db.get_token("youtube")["refresh_token"],
         client_id=env("YOUTUBE_CLIENT_ID"),
         client_secret=env("YOUTUBE_CLIENT_SECRET"),
         token_uri="https://oauth2.googleapis.com/token",
