@@ -17,7 +17,7 @@ seconds_per_shot: 3.2       # cut to a new clip about every 3 s (keeps viewers w
 videos_per_run: 1           # how many videos each scheduled run makes
 
 # Free AI script writer (Google Gemini free tier)
-gemini_model: "gemini-flash-latest"
+gemini_model: ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]   # tried in order
 
 # Free voice (Microsoft Edge neural voices, no key needed)
 voice: "en-US-AndrewMultilingualNeural"   # other good ones: en-US-AvaMultilingualNeural, en-GB-RyanNeural
