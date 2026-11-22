@@ -1,0 +1,29 @@
+name: Connect YouTube
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "The whole http://localhost/?code=... address from the browser"
+        required: true
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hide the code in the log
+        run: echo "::add-mask::${{ github.event.inputs.code }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests PyYAML
+      - name: Save the YouTube login
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_CODE: ${{ github.event.inputs.code }}
+        run: python -m vvapp.connect_youtube
