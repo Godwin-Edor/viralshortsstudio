@@ -1,0 +1,29 @@
+name: Connect TikTok
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "Code TikTok sent back to oauth.html (the dashboard fills this in)"
+        required: true
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hide the code in the log
+        run: echo "::add-mask::${{ github.event.inputs.code }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests PyYAML
+      - name: Save the TikTok login
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_CODE: ${{ github.event.inputs.code }}
+        run: python -m vvapp.connect_tiktok
