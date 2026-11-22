@@ -33,7 +33,7 @@ def _group(words: list[dict], per_line: int) -> list[list[dict]]:
     return groups
 
 
-def build_ass(words: list[dict], total_duration: float, cfg: dict, out_path: str) -> str:
+def build_ass(words: list[dict], total_duration: float, cfg: dict, out_path: str, hook_text: str = "") -> str:
     """words: [{word, start, end}] with times in seconds over the WHOLE video."""
     c = cfg.get("captions", {})
     font = c.get("font", "Montserrat")
@@ -52,11 +52,17 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{font},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,1,0,1,7,3,2,60,60,{margin_v},1
+Style: Hook,{font},{int(size * 0.95)},&H00000000,&H00000000,{hi.rstrip('&')},{hi.rstrip('&')},-1,0,0,0,100,100,1,0,3,18,0,8,70,70,260,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     lines = []
+    hook = re.sub(r"[{}\\]", "", hook_text or "").strip().upper()
+    if hook:  # big headline at the top for the first seconds (stops the scroll)
+        hook_end = min(3.2, max(total_duration - 0.5, 1.0))
+        lines.append(f"Dialogue: 1,{_ts(0)},{_ts(hook_end)},Hook,,0,0,0,,"
+                     f"{{\\fad(0,250)\\fscx85\\fscy85\\t(0,180,\\fscx100\\fscy100)}}{hook}")
     groups = _group(words, per_line)
     for gi, g in enumerate(groups):
         group_end = groups[gi + 1][0]["start"] if gi + 1 < len(groups) else min(g[-1]["end"] + 0.4, total_duration)
