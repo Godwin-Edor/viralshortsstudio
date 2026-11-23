@@ -40,7 +40,7 @@ music_volume: 0.10
 # auto_post: false = videos wait on the dashboard under "To review".
 auto_post: true
 # Platforms auto-posting goes to. Add each one here once it is connected.
-auto_platforms: ["youtube"]
+auto_platforms: ["youtube", "tiktok"]
 # Platforms ticked by default on the approval dashboard (used when auto_post is false)
 platforms_default: ["youtube", "tiktok", "instagram", "facebook"]
 
