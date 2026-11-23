@@ -47,7 +47,13 @@ jobs:
           ARGS=()
           if [ -n "$COUNT" ]; then ARGS+=(--count "$COUNT"); fi
           if [ -n "$TOPIC" ]; then ARGS+=(--topic "$TOPIC"); fi
-          python -m vvapp.generate "${ARGS[@]}"
+          set -o pipefail
+          python -m vvapp.generate "${ARGS[@]}" 2>&1 | tee gen.log
+      - name: Show error
+        if: failure()
+        run: |
+          MSG=$(tail -n 25 gen.log 2>/dev/null | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          echo "::error title=Make videos failed::$MSG"
       - name: Post (auto_post in config.yaml)
         if: success()
         env:
