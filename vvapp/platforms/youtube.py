@@ -24,7 +24,9 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
     script = video.get("script") or {}
     series = script.get("series")
     description = (f"{series} - a new one every morning. Subscribe so you don't miss tomorrow's!\n\n" if series else "") \
-        + f"{video.get('caption', '')}\n\n" + " ".join(f"#{t}" for t in tags) + " #Shorts"
+        + f"{video.get('caption', '')}\n\n" \
+        + ("Some people shown are AI-generated and fictional.\n\n" if script.get("ai_people") else "") \
+        + " ".join(f"#{t}" for t in tags) + " #Shorts"
     publish_at = script.get("publish_at")
     body = {
         "snippet": {
@@ -36,7 +38,7 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
         "status": {
             "privacyStatus": yt_cfg.get("privacy", "public"),
             "selfDeclaredMadeForKids": bool(yt_cfg.get("made_for_kids", False)),
-            "containsSyntheticMedia": bool(yt_cfg.get("synthetic_media", False)),
+            "containsSyntheticMedia": bool(yt_cfg.get("synthetic_media", False) or script.get("ai_people")),
         },
     }
     if publish_at:  # scheduled: YouTube keeps it private and makes it public at publish_at
