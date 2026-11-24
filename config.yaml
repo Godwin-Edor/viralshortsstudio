@@ -12,48 +12,53 @@ language: "English"
 # schedules it on YouTube for its morning slot (US Eastern time). Order = posting order.
 # Remove a block to stop that category; copy one to add a new category.
 categories:
+  - key: mindblown
+    series: "You've Been Lied To"
+    niche: "Popular myths and 'facts' almost everyone believes that are actually wrong (bulls hate red, goldfish 3-second memory, glass is a liquid), busted with the surprising truth."
+    format: "Hook = the myth stated as if true, then 'Wrong.' Reveal the real truth step by step with one jaw-dropping detail, end by asking which myth they believed."
+    hashtag: "mythbusting"
+    youtube_category: "27"
+    footage: ["surprised person", "question mark", "city crowd"]
+    publish_et: "07:00"
+  - key: quiz
+    series: "Can You Guess It?"
+    niche: "Guessing game: an amazing mystery animal, place, object, food or invention described with clever clues."
+    format: "Hook = 'Only 1 in 10 people can guess this in 3 clues.' Give 3 clues from hardest to easiest, each with a short pause line ('Got it yet?'). Then 'Comment your guess... 3, 2, 1' and the reveal with one more wow fact. The answer must NOT appear in the title, hook text or caption."
+    hashtag: "quiz"
+    youtube_category: "24"          # Entertainment
+    footage: ["question mark", "magnifying glass", "puzzle"]
+    publish_et: "07:30"
   - key: history
     series: "History's Strangest True Stories"
-    niche: "Surprising, true, family-friendly stories from history: odd inventions, strange laws, famous mix-ups, ancient technology, lucky accidents and forgotten firsts. NO wars, armies, soldiers, weapons, battles, deaths, disasters, crime or cruelty."
+    niche: "Surprising, true, family-friendly stories from history: bizarre events, odd inventions, strange laws, incredible coincidences, lucky accidents and clever tricks. NO wars, armies, soldiers, weapons, battles, deaths, disasters, crime or cruelty."
+    format: "Tell it like a gripping story: drop the viewer into the moment, build suspense, then a twist ending that makes them say 'no way'."
     hashtag: "history"
-    youtube_category: "27"          # Education
-    footage: ["ancient ruins", "old map", "museum"]
-    publish_et: "07:00"
-  - key: brain
-    series: "Your Brain Is Weird"
-    niche: "Fascinating, true facts about how the human brain, senses and everyday psychology work: optical illusions, memory quirks, habits, why we yawn, deja vu. Explained simply, with NO medical or mental-health advice."
-    hashtag: "psychology"
     youtube_category: "27"
-    footage: ["brain", "eye closeup", "people walking"]
-    publish_et: "07:30"
+    footage: ["ancient ruins", "old map", "museum"]
+    publish_et: "08:00"
+  - key: wyr
+    series: "Would You Rather?"
+    niche: "Fun, imaginative 'would you rather' dilemmas (live on Mars or under the ocean, be able to fly or breathe underwater) answered with real science."
+    format: "Hook = the dilemma. Make both sides sound amazing, then reveal the surprising science of what each would really be like, and ask viewers to vote A or B in the comments."
+    hashtag: "wouldyourather"
+    youtube_category: "24"
+    footage: ["fork in the road", "ocean", "planet"]
+    publish_et: "08:30"
+  - key: mystery
+    series: "Mysteries Nobody Can Explain"
+    niche: "Real, family-friendly unexplained (or recently solved) mysteries: strange signals from space, undeciphered books, ancient machines, moving rocks, lost cities. Clearly separate what is known from what is unknown; no ghosts, horror or anything scary."
+    format: "Open with the most baffling fact, layer clue after clue like a detective story, give the best theories, end on the open question and ask viewers what they think."
+    hashtag: "mystery"
+    youtube_category: "27"
+    footage: ["ancient ruins", "night sky", "old book"]
+    publish_et: "09:00"
   - key: whatif
     series: "What If...?"
-    niche: "Science-based 'what if' scenarios answered with real physics, biology and astronomy (what if you could dig through the Earth, what if Earth had rings). Imaginative but accurate, full of wonder, never scary or doom-laden."
+    niche: "Epic science-based 'what if' scenarios answered with real physics, biology and astronomy (what if you could dig through the Earth, what if Earth had rings, what if humans could photosynthesize). Imaginative but accurate, full of wonder, never scary or doom-laden."
+    format: "Hook = the scenario. Walk through it second by second / step by step with escalating, vivid consequences, and end with the most surprising outcome."
     hashtag: "whatif"
-    youtube_category: "28"          # Science & Technology
+    youtube_category: "28"
     footage: ["earth from space", "planet", "city skyline"]
-    publish_et: "08:00"
-  - key: space
-    series: "Space Is Unbelievable"
-    niche: "Mind-blowing, true facts about space, planets, stars, black holes and astronauts' daily life."
-    hashtag: "space"
-    youtube_category: "28"
-    footage: ["galaxy", "planet", "astronaut"]
-    publish_et: "08:30"
-  - key: science
-    series: "Science They Never Taught You"
-    niche: "Mind-blowing science and chemistry facts that most people never learned in school"
-    hashtag: "science"
-    youtube_category: "28"
-    footage: ["science laboratory", "microscope", "chemistry"]
-    publish_et: "09:00"
-    use_topics_file: true           # topics.txt ideas are used for this category first
-  - key: nature
-    series: "Nature's Wildest Facts"
-    niche: "Astonishing, true facts about animals, plants and the natural world: amazing abilities, strange behaviours, record-breakers. NO hunting, animals hurting each other, or anything gory."
-    hashtag: "animals"
-    youtube_category: "15"          # Pets & Animals
-    footage: ["wildlife", "forest", "ocean"]
     publish_et: "09:30"
 
 # Optional: put your own topic ideas in topics.txt (one per line).
@@ -71,7 +76,7 @@ gemini_model: ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash-lite
 
 # Free voice (Microsoft Edge neural voices, no key needed)
 voice: "en-US-AndrewMultilingualNeural"   # other good ones: en-US-AvaMultilingualNeural, en-GB-RyanNeural
-voice_rate: "+10%"                          # a bit faster than normal sounds more energetic
+voice_rate: "+14%"                          # a bit faster than normal sounds more energetic
 
 # Captions burned into the video
 captions:
@@ -83,7 +88,16 @@ captions:
 
 # Optional background music: drop royalty-free .mp3 files into the music/ folder
 music_dir: "music"
-music_volume: 0.10
+music_volume: 0.13
+# Royalty-free Pixabay tracks (Pixabay licence: free to use, no attribution needed).
+# Used when the music/ folder is empty; one is picked at random for each video.
+music_urls:
+  - "https://cdn.pixabay.com/audio/2026/11/10/audio_cb4bc9cb61.mp3"
+  - "https://cdn.pixabay.com/audio/2026/08/03/audio_e214f508d8.mp3"
+  - "https://cdn.pixabay.com/audio/2026/07/28/audio_dca3f157b3.mp3"
+  - "https://cdn.pixabay.com/audio/2026/06/21/audio_39692ced6f.mp3"
+  - "https://cdn.pixabay.com/audio/2025/08/03/audio_a91fee42fa.mp3"
+  - "https://cdn.pixabay.com/audio/2026/10/30/audio_c7a4969b4f.mp3"
 
 # ---------- Posting ----------
 # auto_post: true  = the AI reviewer checks each video and it is posted with no human approval.
@@ -95,7 +109,8 @@ auto_platforms: ["youtube", "tiktok"]
 platforms_default: ["youtube", "tiktok", "instagram", "facebook"]
 
 # ---------- AI reviewer ----------
-min_hook_score: 7          # 1-10; scripts with a weaker hook are rewritten
+min_hook_score: 8          # 1-10; scripts with a weaker hook are rewritten
+min_fun_score: 7           # 1-10; 'would a bored scroller stop and watch?' - weaker scripts are rewritten
 review_rewrites: 2         # how many rewrites before a topic is skipped (rejected, nothing posted)
 check_footage: true        # AI looks at every clip: must match the narration and be family-friendly
 
