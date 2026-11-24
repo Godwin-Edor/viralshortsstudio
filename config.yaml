@@ -62,7 +62,8 @@ topics_file: "topics.txt"
 
 # Video length and pace
 target_seconds: 40          # 30-50 s works well for Shorts/Reels/TikTok
-seconds_per_shot: 2.6       # cut to a new clip about every 2.5 s (keeps viewers watching)
+seconds_per_shot: 2.6
+ai_people_per_video: 3      # photorealistic AI-made (fictional) people in up to 3 scenes; 0 = off       # cut to a new clip about every 2.5 s (keeps viewers watching)
 videos_per_run: 1           # videos per category per run
 
 # Free AI script writer (Google Gemini free tier)
