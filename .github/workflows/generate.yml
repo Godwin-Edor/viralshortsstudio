@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       category:
-        description: "all = one from every category, one = random category, or a category key (mindblown, quiz, history, wyr, mystery, whatif)"
+        description: "all = one from every category, missing = only categories not made in the last 8 hours, one = random category, or a category key (mindblown, quiz, history, wyr, mystery, whatif)"
         required: false
         default: "one"
       topic:
@@ -45,7 +45,7 @@ jobs:
           text = open("config.yaml", encoding="utf-8").read()
           keys = re.findall(r"^\s*-\s*key:\s*(\S+)", text, re.M)
           choice = (os.environ.get("CHOICE") or "one").strip()
-          if os.environ["EVENT"] == "schedule":
+          if os.environ["EVENT"] == "schedule" or choice == "missing":
               done = set()
               try:  # categories already made in the last 8 hours (an earlier try this morning)
                   since = (datetime.now(timezone.utc) - timedelta(hours=8)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -72,7 +72,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.any == 'yes'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       max-parallel: 3
