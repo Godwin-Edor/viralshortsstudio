@@ -264,11 +264,18 @@ def main():
     count = args.count or int(cfg.get("videos_per_run", 1))
     failures = 0
     for i in range(count):
-        try:
-            make_video(cfg, topic=args.topic if i == 0 else None, offline=args.offline, cat=cat)
-        except Exception as e:  # keep going with the next video
+        topic = args.topic if i == 0 else None
+        tries = 1 if topic else 3  # a topic the AI reviewer rejects is replaced by a new one
+        for t in range(tries):
+            try:
+                row = make_video(cfg, topic=topic, offline=args.offline, cat=cat)
+            except Exception as e:
+                row = None
+                print(f"Video {i + 1} attempt {t + 1} failed: {e}")
+            if row and row.get("status") != "rejected":
+                break
+        else:
             failures += 1
-            print(f"Video {i + 1} failed: {e}")
     if failures == count:
         raise SystemExit(1)
 
