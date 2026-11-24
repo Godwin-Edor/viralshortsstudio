@@ -46,6 +46,12 @@ WHAT MAKES PEOPLE WATCH TO THE END:
 9. For each scene give 3 stock-footage search terms: simple, concrete, filmable things that
    match what the narration says at that moment (1-3 English words, e.g. "folding paper",
    "ice cubes", "lab beaker", "galaxy"). The first term must be the most literal match.
+10. AI PEOPLE: in up to {ai_people} scenes where a person on screen would make it more gripping
+   (a shopper reacting, a scientist at work, someone yawning), add "person": a short visual
+   description of an ORDINARY, FICTIONAL ADULT doing that action in that setting/era, e.g.
+   "a 1930s shopper in a hat staring in amazement". NEVER a real, famous or named person
+   (no historical figures, celebrities, inventors), never a child; fully clothed, everyday, kind.
+   Leave "person" out of all other scenes.
 
 {safety}
 
@@ -54,7 +60,7 @@ Return ONLY valid JSON:
   "topic": "short topic name",
   "hook_text": "3 to 6 word on-screen headline shown at the start (ALL CAPS friendly)",
   "title": "curiosity title under 70 characters, no hashtags, no clickbait lies",
-  "scenes": [{{"text": "narration", "footage": ["term 1", "term 2", "term 3"]}}],
+  "scenes": [{{"text": "narration", "footage": ["term 1", "term 2", "term 3"], "person": "optional"}}],
   "caption": "1-2 sentence post caption ending with a question that invites comments",
   "hashtags": ["5 to 8 relevant hashtags without the # sign; include shorts and {hashtag}"],
   "fact_check": "the key facts in this script and why they are true"
@@ -106,6 +112,8 @@ Below are numbered thumbnails, each with the narration spoken while it is on scr
 For each clip decide:
 - "fits": does the picture reasonably match or illustrate the narration? (a lighter for a sentence
   about a metal melting in your hand does NOT fit; an unrelated pretty background is borderline - say false)
+- If a clip shows a person, they must be an ordinary unknown person: NOT a celebrity, politician,
+  historical figure or any recognisable real individual (if they look like one, safe = false).
 - "safe": is it suitable for under-18s (no violence, weapons, smoking, alcohol, revealing clothing,
   scary images, dangerous acts, brand logos as the focus)?
 
@@ -173,6 +181,7 @@ def write_script(cfg: dict, topic: str, fix: str = "", cat: dict | None = None) 
     prompt = PROMPT.format(
         audience=cfg["audience"], language=cfg.get("language", "English"),
         topic=topic, seconds=seconds, words=int(seconds * 2.6), safety=SAFETY_RULES, **_cat(cfg, cat),
+        ai_people=int(cfg.get("ai_people_per_video", 3)),
     )
     if fix:
         prompt += f"\n\nA reviewer rejected the previous version. Fix ALL of this:\n{fix}\n"
@@ -225,10 +234,13 @@ def check_footage(cfg: dict, items: list[dict]) -> list[dict]:
     for i, it in enumerate(items, 1):
         parts.append({"text": f"Clip {i}. Narration: {it['text']}"})
         try:
-            img = requests.get(it["thumb"], timeout=20)
-            img.raise_for_status()
-            parts.append({"inline_data": {"mime_type": img.headers.get("content-type", "image/jpeg").split(";")[0],
-                                          "data": base64.b64encode(img.content).decode()}})
+            if not str(it["thumb"]).startswith("http"):  # a local AI image
+                data, mime = open(it["thumb"], "rb").read(), "image/jpeg"
+            else:
+                img = requests.get(it["thumb"], timeout=20)
+                img.raise_for_status()
+                data, mime = img.content, img.headers.get("content-type", "image/jpeg").split(";")[0]
+            parts.append({"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}})
         except Exception:
             parts.append({"text": "(thumbnail unavailable)"})
     try:
