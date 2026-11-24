@@ -10,6 +10,8 @@ Usage:
 import argparse
 import math
 import random
+
+import requests
 import shutil
 import subprocess
 import tempfile
@@ -65,7 +67,22 @@ def publish_time(cat: dict | None) -> str | None:
 def _pick_music(cfg: dict) -> str | None:
     d = ROOT / cfg.get("music_dir", "music")
     tracks = list(d.glob("*.mp3")) if d.exists() else []
-    return str(random.choice(tracks)) if tracks else None
+    if tracks:
+        return str(random.choice(tracks))
+    urls = list(cfg.get("music_urls") or [])  # royalty-free Pixabay tracks, downloaded when needed
+    random.shuffle(urls)
+    for url in urls:
+        try:
+            r = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+            if r.ok and len(r.content) > 50_000:
+                d.mkdir(parents=True, exist_ok=True)
+                f = d / url.rsplit("/", 1)[-1]
+                f.write_bytes(r.content)
+                print(f"Music: {f.name}")
+                return str(f)
+        except Exception as e:
+            print(f"Music download failed: {e}")
+    return None
 
 
 def _offline_script(topic: str) -> dict:
