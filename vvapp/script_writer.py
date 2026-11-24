@@ -36,7 +36,8 @@ WHAT MAKES PEOPLE WATCH TO THE END:
    stranger" style turns around the middle to re-hook viewers.
 4. Concrete, vivid, visual language; compare numbers to everyday things.
    Short spoken sentences (max 14 words), like an excited friend explaining.
-5. Be accurate (facts, history, science). Do not invent numbers, dates, names or quotes. If unsure, leave it out.
+5. Be accurate (facts, history, science). Only state dates, places and names you are certain of;
+   when unsure, say "in the early 1930s" or "in America" instead of guessing. Do not invent numbers, dates, names or quotes. If unsure, leave it out.
 6. Last scene: the satisfying payoff, then ONE short line that turns viewers into followers:
    "Follow for {series} every morning." (you may shorten the series name naturally).
 7. LOOP: write the final payoff so it flows naturally back into the hook, so when the video
@@ -67,7 +68,8 @@ SCRIPT (JSON):
 {script}
 
 Check:
-A. Accuracy: is every factual claim true and not exaggerated? List any doubtful claim.
+A. Accuracy: is every factual claim true and not exaggerated? Check every date, place, name and
+   "first/invented" claim carefully: if ANY of them may be wrong, accuracy fails. List any doubtful claim.
 B. Safety: does it follow ALL these rules?
 {safety}
 C. Engagement: hook strength (1-10), does every scene add something new, is the ending satisfying.
@@ -89,7 +91,9 @@ Return ONLY JSON:
 TOPIC_PROMPT = """Suggest ONE fresh topic for a viral, family-friendly short video.
 Series: "{series}" - {niche}
 Audience: {audience} (includes under-18s)
-The topic must be specific, surprising, TRUE, safe to talk about with kids, and explainable in 40 seconds.
+The topic must be specific, surprising, TRUE and well documented (found in encyclopedias or museum
+sources), safe to talk about with kids, and explainable in 40 seconds. The topic text itself must
+follow the rules below (do not mention smoking, weapons, etc. even in passing).
 Prefer topics people would want to share or comment on ("I never knew that!").
 {safety}
 Do NOT repeat or closely resemble any of these past topics:
