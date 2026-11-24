@@ -14,7 +14,7 @@ language: "English"
 categories:
   - key: history
     series: "History's Strangest True Stories"
-    niche: "Surprising, true, family-friendly stories from history: odd inventions, strange laws, famous mix-ups, ancient technology, lucky accidents and forgotten firsts. NO wars, battles, deaths, disasters, crime or cruelty."
+    niche: "Surprising, true, family-friendly stories from history: odd inventions, strange laws, famous mix-ups, ancient technology, lucky accidents and forgotten firsts. NO wars, armies, soldiers, weapons, battles, deaths, disasters, crime or cruelty."
     hashtag: "history"
     youtube_category: "27"          # Education
     footage: ["ancient ruins", "old map", "museum"]
