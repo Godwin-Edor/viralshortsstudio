@@ -30,11 +30,11 @@ def _download(url: str, path: str) -> str:
     return path
 
 
-def post_video(video: dict, cfg: dict) -> None:
+def post_video(video: dict, cfg: dict, local_file: str | None = None) -> None:
     results = dict(video.get("results") or {})
     db.update_video(video["id"], {"status": "posting"})
     with tempfile.TemporaryDirectory() as tmp:
-        local = _download(video["video_url"], str(Path(tmp) / "video.mp4"))
+        local = local_file or _download(video["video_url"], str(Path(tmp) / "video.mp4"))
         for platform in video.get("platforms") or []:
             if results.get(platform, {}).get("ok"):
                 continue  # already posted on an earlier run
