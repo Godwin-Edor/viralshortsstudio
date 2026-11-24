@@ -1,6 +1,7 @@
 """Writes, reviews and checks video scripts with the free Gemini API."""
 import base64
 import json
+import os
 import re
 import time
 
@@ -150,30 +151,61 @@ def _gemini(prompt, model, temperature: float = 0.9, label: str = "Script") -> d
         "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"},
     }
     last = ""
-    for m in dict.fromkeys(_models(model)):
-        for attempt in range(3):
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
-            try:
-                r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=90)
-            except requests.RequestException as e:  # slow or dropped connection: next model
-                last = f"{m}: {e}"
-                break
-            if r.status_code == 200:
+    for rnd in range(3):  # Google's free tier is sometimes overloaded for a few minutes: be patient
+        if rnd:
+            print(f"{label}: all Gemini models busy, waiting {60 * rnd} s before trying again")
+            time.sleep(60 * rnd)
+        for m in dict.fromkeys(_models(model)):
+            for attempt in range(2):
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
                 try:
-                    text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                    text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
-                    data = json.loads(text)
-                    print(f"{label} model: {m}")
-                    return data
-                except Exception as e:  # odd reply: try again
-                    last = f"{m}: unreadable reply ({e})"
+                    r = requests.post(url, json=body, headers={"x-goog-api-key": env("GEMINI_API_KEY")}, timeout=90)
+                except requests.RequestException as e:  # slow or dropped connection: next model
+                    last = f"{m}: {e}"
+                    break
+                if r.status_code == 200:
+                    try:
+                        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                        text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
+                        data = json.loads(text)
+                        print(f"{label} model: {m}")
+                        return data
+                    except Exception as e:  # odd reply: try again
+                        last = f"{m}: unreadable reply ({e})"
+                        continue
+                last = f"{m}: {r.status_code} {r.text[:200]}"
+                if r.status_code in (429, 500, 503):
+                    time.sleep(8 * (attempt + 1))
                     continue
-            last = f"{m}: {r.status_code} {r.text[:200]}"
-            if r.status_code in (429, 500, 503):
-                time.sleep(10 * (attempt + 1))
-                continue
-            break  # 400/403/404: this model is not usable, try the next one
+                break  # 400/403/404: this model is not usable, try the next one
+    if isinstance(prompt, str):  # text-only: fall back to a second free AI (Pollinations)
+        data = _pollinations(prompt, temperature, label)
+        if data is not None:
+            return data
     raise RuntimeError(f"Gemini failed on all models. Last error: {last}")
+
+
+def _pollinations(prompt: str, temperature: float, label: str) -> dict | None:
+    key = os.environ.get("POLLINATIONS_API_KEY", "").strip()
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    for attempt in range(3):
+        try:
+            r = requests.post("https://text.pollinations.ai/openai", headers=headers, timeout=120, json={
+                "model": "openai", "temperature": temperature, "private": True,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "system", "content": "Reply with valid JSON only."},
+                             {"role": "user", "content": prompt}]})
+            if r.status_code == 200:
+                text = r.json()["choices"][0]["message"]["content"]
+                text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
+                data = json.loads(text)
+                print(f"{label} model: pollinations (fallback)")
+                return data
+            print(f"{label}: Pollinations fallback HTTP {r.status_code}")
+        except Exception as e:
+            print(f"{label}: Pollinations fallback failed: {e}")
+        time.sleep(16 * (attempt + 1))
+    return None
 
 
 def _cat(cfg: dict, cat: dict | None) -> dict:
