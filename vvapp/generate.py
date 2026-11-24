@@ -164,6 +164,21 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False, cat: 
                 clip = finder.find(terms, each) if finder else None
                 plan.append([i, each, terms, clip])
 
+        # AI-generated people (fictional) for the scenes the script marked with "person"
+        if finder and int(cfg.get("ai_people_per_video", 3)) > 0:
+            from .ai_people import generate as ai_person
+            made, done_scenes = 0, set()
+            for n, p in enumerate(plan):
+                scene = script["scenes"][p[0]]
+                if p[0] in done_scenes or not scene.get("person") or made >= int(cfg.get("ai_people_per_video", 3)):
+                    continue
+                done_scenes.add(p[0])
+                img = ai_person(scene["person"], str(work / f"person_{n:03d}.jpg"))
+                if img:
+                    p[3] = {"ai_image": img, "thumb": img}
+                    made += 1
+            print(f"AI people: {made} image(s)")
+
         if finder and cfg.get("check_footage", True):
             from .script_writer import check_footage
             for round_ in range(2):  # check, swap the bad clips, check the swaps once more
@@ -194,7 +209,11 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False, cat: 
 
         for n, (i, each, terms, clip) in enumerate(plan):
             out = str(work / f"shot_{n:03d}.mp4")
-            if clip:
+            if clip and clip.get("ai_image"):
+                from .ai_people import image_shot
+                image_shot(clip["ai_image"], each, out)
+                script["ai_people"] = True  # YouTube gets the "altered or synthetic content" label
+            elif clip:
                 raw = download(clip["link"], str(work / f"raw_{n:03d}.mp4"))
                 make_shot(raw, each, out)
             elif offline:
