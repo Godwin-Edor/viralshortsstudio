@@ -1,28 +1,58 @@
 name: Generate and post videos
 
+# Every morning: one video from EACH category in config.yaml, made at about 4 am Eastern and
+# scheduled on YouTube for that category's morning slot (7:00-9:30 am Eastern).
+# The dashboard's "+ New video" button makes one video from a random category, posted at once.
+
 on:
   schedule:
-    - cron: "17 13 * * *"     # 13:17 UTC = 7:17 am Central
-    - cron: "47 22 * * *"     # 22:47 UTC = 4:47 pm Central (after school/work, peak Shorts time)
+    - cron: "13 9 * * *"      # 09:13 UTC = 4:13 am Eastern (5:13 am in summer)
   workflow_dispatch:
     inputs:
-      count:
-        description: "How many videos"
+      category:
+        description: "all = one from every category, one = random category, or a category key (history, brain, whatif, space, science, nature)"
         required: false
-        default: "1"
+        default: "one"
       topic:
-        description: "Optional topic (leave empty to auto-pick)"
+        description: "Optional topic (only with a single category)"
         required: false
         default: ""
 
-concurrency:
-  group: generate
-  cancel-in-progress: false
-
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.pick.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          CHOICE: ${{ github.event.inputs.category }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os, random, re
+          text = open("config.yaml", encoding="utf-8").read()
+          keys = re.findall(r"^\s*-\s*key:\s*(\S+)", text, re.M)
+          choice = (os.environ.get("CHOICE") or "one").strip()
+          if os.environ["EVENT"] == "schedule" or choice == "all":
+              pick = keys
+          elif choice in keys:
+              pick = [choice]
+          else:
+              pick = [random.choice(keys)]
+          print("list=" + json.dumps(pick))
+          EOF
+
   generate:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        category: ${{ fromJSON(needs.plan.outputs.list) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,31 +64,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-montserrat fonts-dejavu-core
       - run: pip install -r requirements.txt
-      - name: Make videos
+      - name: Make and post video
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          COUNT: ${{ github.event.inputs.count }}
-          TOPIC: ${{ github.event.inputs.topic }}
-        run: |
-          ARGS=()
-          if [ -n "$COUNT" ]; then ARGS+=(--count "$COUNT"); fi
-          if [ -n "$TOPIC" ]; then ARGS+=(--topic "$TOPIC"); fi
-          set -o pipefail
-          python -m vvapp.generate "${ARGS[@]}" 2>&1 | tee gen.log
-      - name: Show error
-        if: failure()
-        run: |
-          MSG=$(tail -n 25 gen.log 2>/dev/null | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
-          echo "::error title=Make videos failed::$MSG"
-      - name: Post (auto_post in config.yaml)
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -68,4 +80,16 @@ jobs:
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
-        run: python -m vvapp.post
+          CATEGORY: ${{ matrix.category }}
+          TOPIC: ${{ github.event.inputs.topic }}
+          COUNT_OF_CATEGORIES: ${{ strategy.job-total }}
+        run: |
+          set -o pipefail
+          ARGS=(--category "$CATEGORY")
+          if [ -n "$TOPIC" ] && [ "$COUNT_OF_CATEGORIES" = "1" ]; then ARGS+=(--topic "$TOPIC"); fi
+          python -m vvapp.generate "${ARGS[@]}" 2>&1 | tee gen.log
+      - name: Show error
+        if: failure()
+        run: |
+          MSG=$(tail -n 25 gen.log 2>/dev/null | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          echo "::error title=${{ matrix.category }} video failed::$MSG"
