@@ -4,6 +4,7 @@ Usage:
   python -m vvapp.generate               # makes `videos_per_run` videos (uses all APIs)
   python -m vvapp.generate --count 2
   python -m vvapp.generate --topic "Why the sky is blue"
+  python -m vvapp.generate --category history   # one video from that category (see config.yaml)
   python -m vvapp.generate --offline     # test render only: no API keys, no upload
 """
 import argparse
@@ -13,8 +14,9 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .captions import build_ass
 from .config import ROOT, load_config
@@ -33,6 +35,31 @@ def _next_topic_from_file(cfg: dict, used: list[str]) -> str | None:
         if t and not t.startswith("#") and t.lower() not in used_lower:
             return t
     return None
+
+
+def get_category(cfg: dict, key: str | None) -> dict | None:
+    cats = cfg.get("categories") or []
+    if not key or not cats:
+        return None
+    for c in cats:
+        if c["key"] == key:
+            return c
+    raise SystemExit(f"Unknown category '{key}'. Choose one of: {', '.join(c['key'] for c in cats)}")
+
+
+def publish_time(cat: dict | None) -> str | None:
+    """Today's morning slot for this category (US Eastern) as a UTC timestamp, if it is still
+    at least 20 minutes away. Otherwise None = publish straight away."""
+    slot = (cat or {}).get("publish_et")
+    if not slot:
+        return None
+    et = ZoneInfo("America/New_York")
+    now = datetime.now(et)
+    h, m = (int(x) for x in slot.split(":"))
+    when = now.replace(hour=h, minute=m, second=0, microsecond=0)
+    if when - now < timedelta(minutes=20):
+        return None
+    return when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _pick_music(cfg: dict) -> str | None:
@@ -70,7 +97,7 @@ def _offline_voice(text: str, out_path: str) -> tuple[list[dict], float]:
     return [{"word": w, "start": i * step, "end": (i + 1) * step} for i, w in enumerate(tokens)], duration
 
 
-def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> dict:
+def make_video(cfg: dict, topic: str | None = None, offline: bool = False, cat: dict | None = None) -> dict:
     work = Path(tempfile.mkdtemp(prefix="vv_"))
     try:
         # 1) topic + script
@@ -80,11 +107,15 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
             from . import db
             from .script_writer import pick_topic, write_and_review
             past = db.recent_topics()
-            topic = topic or _next_topic_from_file(cfg, past) or pick_topic(cfg, past)
-            print(f"Topic: {topic}")
-            script, review = write_and_review(cfg, topic)
+            from_file = None if (cat and not cat.get("use_topics_file")) else _next_topic_from_file(cfg, past)
+            topic = topic or from_file or pick_topic(cfg, past, cat)
+            print(f"Category: {(cat or {}).get('series', '-')}  Topic: {topic}")
+            script, review = write_and_review(cfg, topic, cat)
             script["topic"] = topic  # keep the exact topic text so topics.txt items are not reused
             script["review"] = review
+            if cat:
+                script["category"], script["series"] = cat["key"], cat["series"]
+                script["youtube_category"] = cat.get("youtube_category")
             if not review.get("approve"):
                 # the AI reviewer would not pass it: record why, make nothing, post nothing
                 reason = "; ".join(review.get("problems") or []) or "did not pass the AI review"
@@ -121,7 +152,8 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
         plan = []  # [(scene_index, seconds, terms, clip)]
         if not offline:
             from .footage import FootageFinder, download
-            finder = FootageFinder(fallback_query=cfg["niche"].split()[0])
+            generic = (cat or {}).get("footage") or ["science laboratory", "abstract science", "microscope"]
+            finder = FootageFinder(fallback_query=generic[0])
         per_shot = float(cfg.get("seconds_per_shot", 3.2))
         for i, (scene, length) in enumerate(zip(script["scenes"], scene_lengths)):
             count = max(1, math.ceil(length / per_shot))
@@ -153,8 +185,7 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
                         plan[j][3] = None
                     if not plan[j][3]:
                         # unsafe and no better match: use a generic science clip (still checked next round)
-                        plan[j][3] = finder.find(["science laboratory", "abstract science", "microscope"],
-                                                 plan[j][1])
+                        plan[j][3] = finder.find(generic, plan[j][1])
                         if plan[j][3] and round_ == 1:
                             plan[j][3]["ok"] = True
                     if plan[j][3] is old:
@@ -194,6 +225,8 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
         from . import db
         dest = f"{datetime.now(timezone.utc):%Y-%m-%d}/{vid_id}.mp4"
         url = db.upload_file(final, dest)
+        auto = bool(cfg.get("auto_post"))
+        script["publish_at"] = publish_time(cat) if auto else None
         row = db.insert_video({
             "id": vid_id,
             "topic": script["topic"],
@@ -205,11 +238,15 @@ def make_video(cfg: dict, topic: str | None = None, offline: bool = False) -> di
             "video_path": dest,
             "video_url": url,
             "platforms": cfg.get("auto_platforms" if cfg.get("auto_post") else "platforms_default", []),
-            "status": "approved" if cfg.get("auto_post") else "pending",
+            "status": "posting" if auto else "pending",
             "results": {"review": {"ok": True, "note": f"AI review passed (hook {script['review'].get('hook_score')}/10)"}},
         })
+        print(f"{'Posting' if auto else 'Queued for approval'}: {row['id']} - {row['title']}"
+              + (f" (YouTube scheduled for {script['publish_at']})" if script.get("publish_at") else ""))
+        if auto:  # post this video now (scheduled on YouTube for its morning slot)
+            from .post import post_video
+            post_video(row, cfg, local_file=final)
         Path(final).unlink(missing_ok=True)
-        print(f"{'Ready to post' if cfg.get('auto_post') else 'Queued for approval'}: {row['id']} - {row['title']}")
         return row
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -220,13 +257,15 @@ def main():
     ap.add_argument("--count", type=int, default=None)
     ap.add_argument("--topic", type=str, default=None)
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument("--category", type=str, default=None)
     args = ap.parse_args()
     cfg = load_config()
+    cat = get_category(cfg, args.category)
     count = args.count or int(cfg.get("videos_per_run", 1))
     failures = 0
     for i in range(count):
         try:
-            make_video(cfg, topic=args.topic if i == 0 else None, offline=args.offline)
+            make_video(cfg, topic=args.topic if i == 0 else None, offline=args.offline, cat=cat)
         except Exception as e:  # keep going with the next video
             failures += 1
             print(f"Video {i + 1} failed: {e}")
