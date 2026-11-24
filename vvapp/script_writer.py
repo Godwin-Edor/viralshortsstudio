@@ -22,10 +22,14 @@ PROMPT = """You write scripts for faceless educational short videos (YouTube Sho
 that people watch to the end, comment on and follow the channel for.
 
 Series: "{series}" - {niche}
+FORMAT FOR THIS SERIES (follow it exactly): {format}
 Audience: {audience}
 Language: {language}
 Video topic: {topic}
 Target length: about {seconds} seconds of narration (about {words} words in total).
+
+GOAL: a bored 15-35 year-old scrolling fast stops, watches to the very end, rewatches, comments,
+and follows because they want tomorrow's video. Entertainment first, education second.
 
 WHAT MAKES PEOPLE WATCH TO THE END:
 1. Scene 1 = HOOK, max 10 words, spoken in the first 2 seconds. Use ONE of: a shocking
@@ -34,22 +38,26 @@ WHAT MAKES PEOPLE WATCH TO THE END:
 2. Open a curiosity loop in the hook and do NOT fully close it until the last 2 scenes.
 3. Every scene adds a NEW surprising detail. Use "but here's the weird part", "and it gets
    stranger" style turns around the middle to re-hook viewers.
-4. Concrete, vivid, visual language; compare numbers to everyday things.
-   Short spoken sentences (max 14 words), like an excited friend explaining.
+4. Talk to "you". Concrete, vivid, emotional, visual language; compare numbers to everyday things.
+   Short punchy spoken sentences (max 12 words), like a fun friend who can't wait to tell you.
+   No textbook tone, no filler, no "in this video". Humour and playful attitude are welcome.
 5. Be accurate (facts, history, science). Only state dates, places and names you are certain of;
    when unsure, say "in the early 1930s" or "in America" instead of guessing. Do not invent numbers, dates, names or quotes. If unsure, leave it out.
-6. Last scene: the satisfying payoff, then ONE short line that turns viewers into followers:
-   "Follow for {series} every morning." (you may shorten the series name naturally).
+6. Last scene: the satisfying payoff, then a comment prompt that is easy and fun to answer
+   (a guess, a choice, "which one surprised you?"), then ONE short follow line, e.g.
+   "Follow - tomorrow's is even crazier." (vary the wording).
 7. LOOP: write the final payoff so it flows naturally back into the hook, so when the video
    replays from the start it feels like one continuous thought (viewers rewatch without noticing).
 8. 7 to 10 scenes, 1-2 sentences each.
 9. For each scene give 3 stock-footage search terms: simple, concrete, filmable things that
    match what the narration says at that moment (1-3 English words, e.g. "folding paper",
    "ice cubes", "lab beaker", "galaxy"). The first term must be the most literal match.
-10. AI PEOPLE: in up to {ai_people} scenes where a person on screen would make it more gripping
-   (a shopper reacting, a scientist at work, someone yawning), add "person": a short visual
-   description of an ORDINARY, FICTIONAL ADULT doing that action in that setting/era, e.g.
-   "a 1930s shopper in a hat staring in amazement". NEVER a real, famous or named person
+10. AI PEOPLE: in up to {ai_people} scenes where a person on screen makes it more gripping,
+   add "person": a short, cinematic description of an ORDINARY, FICTIONAL ADULT with a strong,
+   expressive emotion or a dramatic moment (jaw-dropping shock, laughing hard, wide-eyed fear of a
+   harmless surprise, a sailor squinting into a storm, an explorer holding up a glowing map), with
+   setting/era and lighting, e.g. "a 1930s shopper in a hat gasping, hand over mouth, dramatic
+   window light". NEVER a real, famous or named person
    (no historical figures, celebrities, inventors), never a child; fully clothed, everyday, kind.
    Leave "person" out of all other scenes.
 
@@ -78,10 +86,12 @@ A. Accuracy: is every factual claim true and not exaggerated? Check every date, 
    "first/invented" claim carefully: if ANY of them may be wrong, accuracy fails. List any doubtful claim.
 B. Safety: does it follow ALL these rules?
 {safety}
-C. Engagement: hook strength (1-10), does every scene add something new, is the ending satisfying.
+C. Engagement: hook strength (1-10); fun score (1-10) = would a bored 15-35 year-old scrolling
+   fast actually stop, watch to the end and want more? Be harsh: textbook or "meh" topics score
+   under 6. Does every scene add something new, is the ending satisfying.
 D. Title/caption: honest (not misleading), no hashtags in title.
 
-Approve only if A and B have NO problems and hook strength is at least 7.
+Approve only if A and B have NO problems, hook strength is at least {min_hook} and fun score is at least {min_fun}.
 
 Return ONLY JSON:
 {{
@@ -89,23 +99,28 @@ Return ONLY JSON:
   "accuracy_ok": true or false,
   "safety_ok": true or false,
   "hook_score": number,
+  "fun_score": number,
   "problems": ["short, specific problems; empty if none"],
   "fix_instructions": "how to rewrite to fix every problem (empty if approved)"
 }}
 """
 
-TOPIC_PROMPT = """Suggest ONE fresh topic for a viral, family-friendly short video.
+TOPIC_PROMPT = """Suggest SIX fresh, different topics for a viral, family-friendly short video, then score each.
 Series: "{series}" - {niche}
+Format: {format}
 Audience: {audience} (includes under-18s)
 The topic must be specific, surprising, TRUE and well documented (found in encyclopedias or museum
 sources), safe to talk about with kids, and explainable in 40 seconds. The topic text itself must
 follow the rules below (do not mention smoking, weapons, etc. even in passing).
-Prefer topics people would want to share or comment on ("I never knew that!").
+Prefer topics people would want to share or comment on ("No way!", "I never knew that!").
+Think like a top Shorts creator: what would make a bored teenager or adult stop scrolling RIGHT NOW?
+Avoid textbook, obvious or "meh" topics (everyday body functions, basic school science).
+Score each topic 1-10 for "stop-scrolling power" honestly.
 {safety}
 Do NOT repeat or closely resemble any of these past topics:
 {past}
 
-Return ONLY JSON: {{"topic": "..."}}"""
+Return ONLY JSON: {{"candidates": [{{"topic": "...", "score": number}}]}}"""
 
 FOOTAGE_PROMPT = """You check stock-video clips chosen for a family-friendly educational short.
 Below are numbered thumbnails, each with the narration spoken while it is on screen.
@@ -164,7 +179,8 @@ def _gemini(prompt, model, temperature: float = 0.9, label: str = "Script") -> d
 def _cat(cfg: dict, cat: dict | None) -> dict:
     cat = cat or {}
     return {"series": cat.get("series", "Viral Scientist"), "niche": cat.get("niche", cfg["niche"]),
-            "hashtag": cat.get("hashtag", "science")}
+            "hashtag": cat.get("hashtag", "science"),
+            "format": cat.get("format", "A gripping short story-style explainer with a twist at the end.")}
 
 
 def pick_topic(cfg: dict, past_topics: list[str], cat: dict | None = None) -> str:
@@ -173,7 +189,11 @@ def pick_topic(cfg: dict, past_topics: list[str], cat: dict | None = None) -> st
         TOPIC_PROMPT.format(audience=cfg["audience"], past=past, safety=SAFETY_RULES, **_cat(cfg, cat)),
         cfg["gemini_model"], temperature=1.1, label="Topic",
     )
-    return data["topic"].strip()
+    cands = data.get("candidates") or [{"topic": data.get("topic", ""), "score": 0}]
+    cands = [c for c in cands if str(c.get("topic", "")).strip()]
+    best = max(cands, key=lambda c: float(c.get("score") or 0))
+    print("Topic ideas: " + " | ".join(f"{c.get('score')}: {c['topic'][:60]}" for c in cands))
+    return best["topic"].strip()
 
 
 def write_script(cfg: dict, topic: str, fix: str = "", cat: dict | None = None) -> dict:
@@ -204,11 +224,13 @@ def review_script(cfg: dict, script: dict, cat: dict | None = None) -> dict:
     shown = {k: script.get(k) for k in ("title", "hook_text", "scenes", "caption", "hashtags")}
     data = _gemini(
         REVIEW_PROMPT.format(audience=cfg["audience"], script=json.dumps(shown, ensure_ascii=False),
-                             safety=SAFETY_RULES, series=_cat(cfg, cat)["series"]),
+                             safety=SAFETY_RULES, series=_cat(cfg, cat)["series"],
+                             min_hook=cfg.get("min_hook_score", 8), min_fun=cfg.get("min_fun_score", 7)),
         cfg["gemini_model"], temperature=0.1, label="Review",
     )
     data["approve"] = bool(data.get("approve")) and bool(data.get("safety_ok")) and bool(data.get("accuracy_ok")) \
-        and float(data.get("hook_score") or 0) >= float(cfg.get("min_hook_score", 7))
+        and float(data.get("hook_score") or 0) >= float(cfg.get("min_hook_score", 8)) \
+        and float(data.get("fun_score") or 0) >= float(cfg.get("min_fun_score", 7))
     return data
 
 
@@ -219,7 +241,7 @@ def write_and_review(cfg: dict, topic: str, cat: dict | None = None) -> tuple[di
     for attempt in range(int(cfg.get("review_rewrites", 2)) + 1):
         script = write_script(cfg, topic, fix, cat)
         review = review_script(cfg, script, cat)
-        print(f"Review {attempt + 1}: approve={review['approve']} hook={review.get('hook_score')} "
+        print(f"Review {attempt + 1}: approve={review['approve']} hook={review.get('hook_score')} fun={review.get('fun_score')} "
               f"problems={review.get('problems')}")
         if review["approve"]:
             return script, review
