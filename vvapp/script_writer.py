@@ -21,7 +21,7 @@ SAFETY_RULES = """FAMILY-FRIENDLY RULES (the audience includes people under 18 -
 PROMPT = """You write scripts for faceless educational short videos (YouTube Shorts, TikTok, Reels)
 that people watch to the end, comment on and follow the channel for.
 
-Channel niche: {niche}
+Series: "{series}" - {niche}
 Audience: {audience}
 Language: {language}
 Video topic: {topic}
@@ -36,12 +36,13 @@ WHAT MAKES PEOPLE WATCH TO THE END:
    stranger" style turns around the middle to re-hook viewers.
 4. Concrete, vivid, visual language; compare numbers to everyday things.
    Short spoken sentences (max 14 words), like an excited friend explaining.
-5. Be scientifically accurate. Do not invent numbers, dates, names or quotes. If unsure, leave it out.
-6. Last scene: the satisfying payoff, then ONE short engagement line that fits naturally, either
-   a comment question ("Would you...?") or "Follow for a new mind-blowing fact every day."
-   Alternate between them; keep it to one sentence.
-7. 7 to 10 scenes, 1-2 sentences each.
-8. For each scene give 3 stock-footage search terms: simple, concrete, filmable things that
+5. Be accurate (facts, history, science). Do not invent numbers, dates, names or quotes. If unsure, leave it out.
+6. Last scene: the satisfying payoff, then ONE short line that turns viewers into followers:
+   "Follow for {series} every morning." (you may shorten the series name naturally).
+7. LOOP: write the final payoff so it flows naturally back into the hook, so when the video
+   replays from the start it feels like one continuous thought (viewers rewatch without noticing).
+8. 7 to 10 scenes, 1-2 sentences each.
+9. For each scene give 3 stock-footage search terms: simple, concrete, filmable things that
    match what the narration says at that moment (1-3 English words, e.g. "folding paper",
    "ice cubes", "lab beaker", "galaxy"). The first term must be the most literal match.
 
@@ -53,13 +54,13 @@ Return ONLY valid JSON:
   "hook_text": "3 to 6 word on-screen headline shown at the start (ALL CAPS friendly)",
   "title": "curiosity title under 70 characters, no hashtags, no clickbait lies",
   "scenes": [{{"text": "narration", "footage": ["term 1", "term 2", "term 3"]}}],
-  "caption": "1-2 sentence post caption ending with a question",
-  "hashtags": ["5 to 8 relevant hashtags without the # sign; include shorts and science"],
+  "caption": "1-2 sentence post caption ending with a question that invites comments",
+  "hashtags": ["5 to 8 relevant hashtags without the # sign; include shorts and {hashtag}"],
   "fact_check": "the key facts in this script and why they are true"
 }}
 """
 
-REVIEW_PROMPT = """You are a strict reviewer for a family-friendly educational Shorts channel.
+REVIEW_PROMPT = """You are a strict reviewer for a family-friendly educational Shorts channel (series: "{series}").
 Review this script before it is posted publicly with NO human check. Audience: {audience} (includes under-18s).
 
 SCRIPT (JSON):
@@ -85,8 +86,8 @@ Return ONLY JSON:
 }}
 """
 
-TOPIC_PROMPT = """Suggest ONE fresh topic for a viral, family-friendly educational short video.
-Channel niche: {niche}
+TOPIC_PROMPT = """Suggest ONE fresh topic for a viral, family-friendly short video.
+Series: "{series}" - {niche}
 Audience: {audience} (includes under-18s)
 The topic must be specific, surprising, TRUE, safe to talk about with kids, and explainable in 40 seconds.
 Prefer topics people would want to share or comment on ("I never knew that!").
@@ -148,20 +149,26 @@ def _gemini(prompt, model, temperature: float = 0.9, label: str = "Script") -> d
     raise RuntimeError(f"Gemini failed on all models. Last error: {last}")
 
 
-def pick_topic(cfg: dict, past_topics: list[str]) -> str:
-    past = "\n".join(f"- {t}" for t in past_topics[:150]) or "- (none yet)"
+def _cat(cfg: dict, cat: dict | None) -> dict:
+    cat = cat or {}
+    return {"series": cat.get("series", "Viral Scientist"), "niche": cat.get("niche", cfg["niche"]),
+            "hashtag": cat.get("hashtag", "science")}
+
+
+def pick_topic(cfg: dict, past_topics: list[str], cat: dict | None = None) -> str:
+    past = "\n".join(f"- {t}" for t in past_topics[:200]) or "- (none yet)"
     data = _gemini(
-        TOPIC_PROMPT.format(niche=cfg["niche"], audience=cfg["audience"], past=past, safety=SAFETY_RULES),
+        TOPIC_PROMPT.format(audience=cfg["audience"], past=past, safety=SAFETY_RULES, **_cat(cfg, cat)),
         cfg["gemini_model"], temperature=1.1, label="Topic",
     )
     return data["topic"].strip()
 
 
-def write_script(cfg: dict, topic: str, fix: str = "") -> dict:
+def write_script(cfg: dict, topic: str, fix: str = "", cat: dict | None = None) -> dict:
     seconds = int(cfg.get("target_seconds", 40))
     prompt = PROMPT.format(
-        niche=cfg["niche"], audience=cfg["audience"], language=cfg.get("language", "English"),
-        topic=topic, seconds=seconds, words=int(seconds * 2.6), safety=SAFETY_RULES,
+        audience=cfg["audience"], language=cfg.get("language", "English"),
+        topic=topic, seconds=seconds, words=int(seconds * 2.6), safety=SAFETY_RULES, **_cat(cfg, cat),
     )
     if fix:
         prompt += f"\n\nA reviewer rejected the previous version. Fix ALL of this:\n{fix}\n"
@@ -171,19 +178,20 @@ def write_script(cfg: dict, topic: str, fix: str = "") -> dict:
         raise RuntimeError("Gemini returned too few scenes; try again.")
     data["scenes"] = scenes
     tags = [h.lstrip("#").replace(" ", "") for h in data.get("hashtags", [])]
-    if "shorts" not in [t.lower() for t in tags]:
-        tags.append("shorts")
+    for must in ("shorts", _cat(cfg, cat)["hashtag"]):
+        if must.lower() not in [t.lower() for t in tags]:
+            tags.append(must)
     data["hashtags"] = tags[:8]
     data.setdefault("topic", topic)
     data.setdefault("hook_text", data.get("title", ""))
     return data
 
 
-def review_script(cfg: dict, script: dict) -> dict:
+def review_script(cfg: dict, script: dict, cat: dict | None = None) -> dict:
     shown = {k: script.get(k) for k in ("title", "hook_text", "scenes", "caption", "hashtags")}
     data = _gemini(
         REVIEW_PROMPT.format(audience=cfg["audience"], script=json.dumps(shown, ensure_ascii=False),
-                             safety=SAFETY_RULES),
+                             safety=SAFETY_RULES, series=_cat(cfg, cat)["series"]),
         cfg["gemini_model"], temperature=0.1, label="Review",
     )
     data["approve"] = bool(data.get("approve")) and bool(data.get("safety_ok")) and bool(data.get("accuracy_ok")) \
@@ -191,13 +199,13 @@ def review_script(cfg: dict, script: dict) -> dict:
     return data
 
 
-def write_and_review(cfg: dict, topic: str) -> tuple[dict, dict]:
+def write_and_review(cfg: dict, topic: str, cat: dict | None = None) -> tuple[dict, dict]:
     """Writes a script and has the AI reviewer check it; rewrites up to `review_rewrites` times."""
     fix = ""
     review = {}
     for attempt in range(int(cfg.get("review_rewrites", 2)) + 1):
-        script = write_script(cfg, topic, fix)
-        review = review_script(cfg, script)
+        script = write_script(cfg, topic, fix, cat)
+        review = review_script(cfg, script, cat)
         print(f"Review {attempt + 1}: approve={review['approve']} hook={review.get('hook_score')} "
               f"problems={review.get('problems')}")
         if review["approve"]:
