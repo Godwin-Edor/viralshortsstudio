@@ -21,13 +21,17 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
     )
     yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
     tags = video.get("hashtags") or []
-    description = f"{video.get('caption', '')}\n\n" + " ".join(f"#{t}" for t in tags) + " #Shorts"
+    script = video.get("script") or {}
+    series = script.get("series")
+    description = (f"{series} - a new one every morning. Subscribe so you don't miss tomorrow's!\n\n" if series else "") \
+        + f"{video.get('caption', '')}\n\n" + " ".join(f"#{t}" for t in tags) + " #Shorts"
+    publish_at = script.get("publish_at")
     body = {
         "snippet": {
             "title": video["title"][:100],
             "description": description[:4900],
             "tags": tags[:15],
-            "categoryId": str(yt_cfg.get("category_id", "28")),
+            "categoryId": str(script.get("youtube_category") or yt_cfg.get("category_id", "28")),
         },
         "status": {
             "privacyStatus": yt_cfg.get("privacy", "public"),
@@ -35,6 +39,9 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
             "containsSyntheticMedia": bool(yt_cfg.get("synthetic_media", False)),
         },
     }
+    if publish_at:  # scheduled: YouTube keeps it private and makes it public at publish_at
+        body["status"]["privacyStatus"] = "private"
+        body["status"]["publishAt"] = publish_at
     media = MediaFileUpload(local_file, mimetype="video/mp4", resumable=True, chunksize=-1)
     request = yt.videos().insert(part="snippet,status", body=body, media_body=media)
     response = None
@@ -43,6 +50,8 @@ def post(video: dict, local_file: str, cfg: dict) -> dict:
     vid = response["id"]
     privacy = response.get("status", {}).get("privacyStatus", "")
     note = ""
-    if privacy == "private" and yt_cfg.get("privacy") == "public":
+    if publish_at:
+        note = f"Scheduled to go public at {publish_at} (UTC)"
+    elif privacy == "private" and yt_cfg.get("privacy") == "public":
         note = "Uploaded as private (API project not yet audited). Make it public in YouTube Studio."
     return {"ok": True, "id": vid, "url": f"https://youtube.com/shorts/{vid}", "note": note}
