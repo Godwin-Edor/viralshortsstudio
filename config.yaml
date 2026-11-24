@@ -2,10 +2,59 @@
 # Viral Shorts Studio - main settings (edit freely)
 # ------------------------------------------------------------
 
-# What the channel is about. Keep it narrow: one niche grows faster.
-niche: "Mind-blowing science and chemistry facts that most people never learned in school"
+# Overall channel theme (each category below has its own niche).
+niche: "Mind-blowing, true facts that make people say \"I never knew that!\""
 audience: "curious teenagers and adults who scroll short videos (content must be suitable for under-18s)"
 language: "English"
+
+# ---------- Categories (one video from each, every US morning) ----------
+# Each category is a recurring series. The daily run makes one video per category and
+# schedules it on YouTube for its morning slot (US Eastern time). Order = posting order.
+# Remove a block to stop that category; copy one to add a new category.
+categories:
+  - key: history
+    series: "History's Strangest True Stories"
+    niche: "Surprising, true, family-friendly stories from history: odd inventions, strange laws, famous mix-ups, ancient technology, lucky accidents and forgotten firsts. NO wars, battles, deaths, disasters, crime or cruelty."
+    hashtag: "history"
+    youtube_category: "27"          # Education
+    footage: ["ancient ruins", "old map", "museum"]
+    publish_et: "07:00"
+  - key: brain
+    series: "Your Brain Is Weird"
+    niche: "Fascinating, true facts about how the human brain, senses and everyday psychology work: optical illusions, memory quirks, habits, why we yawn, deja vu. Explained simply, with NO medical or mental-health advice."
+    hashtag: "psychology"
+    youtube_category: "27"
+    footage: ["brain", "eye closeup", "people walking"]
+    publish_et: "07:30"
+  - key: whatif
+    series: "What If...?"
+    niche: "Science-based 'what if' scenarios answered with real physics, biology and astronomy (what if you could dig through the Earth, what if Earth had rings). Imaginative but accurate, full of wonder, never scary or doom-laden."
+    hashtag: "whatif"
+    youtube_category: "28"          # Science & Technology
+    footage: ["earth from space", "planet", "city skyline"]
+    publish_et: "08:00"
+  - key: space
+    series: "Space Is Unbelievable"
+    niche: "Mind-blowing, true facts about space, planets, stars, black holes and astronauts' daily life."
+    hashtag: "space"
+    youtube_category: "28"
+    footage: ["galaxy", "planet", "astronaut"]
+    publish_et: "08:30"
+  - key: science
+    series: "Science They Never Taught You"
+    niche: "Mind-blowing science and chemistry facts that most people never learned in school"
+    hashtag: "science"
+    youtube_category: "28"
+    footage: ["science laboratory", "microscope", "chemistry"]
+    publish_et: "09:00"
+    use_topics_file: true           # topics.txt ideas are used for this category first
+  - key: nature
+    series: "Nature's Wildest Facts"
+    niche: "Astonishing, true facts about animals, plants and the natural world: amazing abilities, strange behaviours, record-breakers. NO hunting, animals hurting each other, or anything gory."
+    hashtag: "animals"
+    youtube_category: "15"          # Pets & Animals
+    footage: ["wildlife", "forest", "ocean"]
+    publish_et: "09:30"
 
 # Optional: put your own topic ideas in topics.txt (one per line).
 # The generator uses those first, then lets the AI pick new topics.
@@ -14,7 +63,7 @@ topics_file: "topics.txt"
 # Video length and pace
 target_seconds: 40          # 30-50 s works well for Shorts/Reels/TikTok
 seconds_per_shot: 2.6       # cut to a new clip about every 2.5 s (keeps viewers watching)
-videos_per_run: 1           # how many videos each scheduled run makes
+videos_per_run: 1           # videos per category per run
 
 # Free AI script writer (Google Gemini free tier)
 gemini_model: ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]   # tried in order
