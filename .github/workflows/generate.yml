@@ -5,12 +5,14 @@ name: Generate and post videos
 # The dashboard's "+ New video" button makes one video from a random category, posted at once.
 
 on:
-  schedule:
-    - cron: "13 9 * * *"      # 09:13 UTC = 4:13 am Eastern (5:13 am in summer)
+  schedule:                   # GitHub sometimes skips a scheduled run, so there are three tries;
+    - cron: "13 9 * * *"      # each one only makes the categories that are still missing today.
+    - cron: "21 10 * * *"     # (09:13 / 10:21 / 11:07 UTC = 4:13 / 5:21 / 6:07 am Eastern)
+    - cron: "7 11 * * *"
   workflow_dispatch:
     inputs:
       category:
-        description: "all = one from every category, one = random category, or a category key (history, brain, whatif, space, science, nature)"
+        description: "all = one from every category, one = random category, or a category key (mindblown, quiz, history, wyr, mystery, whatif)"
         required: false
         default: "one"
       topic:
@@ -18,34 +20,57 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: generate
+  cancel-in-progress: false
+
 jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
       list: ${{ steps.pick.outputs.list }}
+      any: ${{ steps.pick.outputs.any }}
     steps:
       - uses: actions/checkout@v4
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
           CHOICE: ${{ github.event.inputs.category }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           python3 - <<'EOF' >> "$GITHUB_OUTPUT"
-          import json, os, random, re
+          import json, os, random, re, urllib.request
+          from datetime import datetime, timedelta, timezone
           text = open("config.yaml", encoding="utf-8").read()
           keys = re.findall(r"^\s*-\s*key:\s*(\S+)", text, re.M)
           choice = (os.environ.get("CHOICE") or "one").strip()
-          if os.environ["EVENT"] == "schedule" or choice == "all":
+          if os.environ["EVENT"] == "schedule":
+              done = set()
+              try:  # categories already made in the last 8 hours (an earlier try this morning)
+                  since = (datetime.now(timezone.utc) - timedelta(hours=8)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                  url = (os.environ["SUPABASE_URL"] + "/rest/v1/videos?select=script&status=neq.rejected"
+                         + "&created_at=gte." + since)
+                  key = os.environ["SUPABASE_SERVICE_KEY"]
+                  req = urllib.request.Request(url, headers={"apikey": key, "Authorization": "Bearer " + key})
+                  for row in json.load(urllib.request.urlopen(req, timeout=30)):
+                      done.add((row.get("script") or {}).get("category"))
+              except Exception as e:
+                  print("could not check earlier videos:", e, file=__import__("sys").stderr)
+              pick = [k for k in keys if k not in done]
+          elif choice == "all":
               pick = keys
           elif choice in keys:
               pick = [choice]
           else:
               pick = [random.choice(keys)]
           print("list=" + json.dumps(pick))
+          print("any=" + ("yes" if pick else "no"))
           EOF
 
   generate:
     needs: plan
+    if: needs.plan.outputs.any == 'yes'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
