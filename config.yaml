@@ -12,6 +12,15 @@ language: "English"
 # schedules it on YouTube for its morning slot (US Eastern time). Order = posting order.
 # Remove a block to stop that category; copy one to add a new category.
 categories:
+  - key: tinyboss
+    type: ai_video                  # photorealistic AI comedy clip with its own voices (Veo)
+    series: "Tiny Bosses"
+    niche: "Babies and toddlers acting like grown-up bosses: taking serious phone calls, complaining about nap time, negotiating for snacks, reviewing mum's cooking, giving a meeting."
+    format: "Like the viral 'baby on the phone' reels: a cute, very expressive toddler in a cosy real home talks like an adult in babble mixed with a few clear words, while a parent in the background reacts. Ends with a funny final line or look."
+    hashtag: "funnybaby"
+    youtube_category: "23"          # Comedy
+    publish_et: "07:00"
+    fallback: wyr                   # used when Veo is not available on the key
   - key: mindblown
     series: "You've Been Lied To"
     niche: "Popular myths and 'facts' almost everyone believes that are actually wrong (bulls hate red, goldfish 3-second memory, glass is a liquid), busted with the surprising truth."
@@ -19,7 +28,7 @@ categories:
     hashtag: "mythbusting"
     youtube_category: "27"
     footage: ["surprised person", "question mark", "city crowd"]
-    publish_et: "07:00"
+    publish_et: "07:30"
   - key: quiz
     series: "Can You Guess It?"
     niche: "Guessing game: an amazing mystery animal, place, object, food or invention described with clever clues."
@@ -27,7 +36,7 @@ categories:
     hashtag: "quiz"
     youtube_category: "24"          # Entertainment
     footage: ["question mark", "magnifying glass", "puzzle"]
-    publish_et: "07:30"
+    publish_et: "08:00"
   - key: history
     series: "History's Strangest True Stories"
     niche: "Surprising, true, family-friendly stories from history: bizarre events, odd inventions, strange laws, incredible coincidences, lucky accidents and clever tricks. NO wars, armies, soldiers, weapons, battles, deaths, disasters, crime or cruelty."
@@ -35,7 +44,16 @@ categories:
     hashtag: "history"
     youtube_category: "27"
     footage: ["ancient ruins", "old map", "museum"]
-    publish_et: "08:00"
+    publish_et: "09:00"
+  - key: pets
+    type: ai_video
+    series: "If Pets Could Talk"
+    niche: "Pets with human voices caught in funny everyday moments: a dog explaining why the couch cushion exploded, a cat filing a complaint about the empty food bowl, a parrot gossiping."
+    format: "Handheld phone video at home; the pet's mouth moves as it talks in a funny voice, the owner reacts off-camera or in the background. Ends with a punchline."
+    hashtag: "funnypets"
+    youtube_category: "15"
+    publish_et: "08:30"
+    fallback: whatif
   - key: wyr
     series: "Would You Rather?"
     niche: "Fun, imaginative 'would you rather' dilemmas (live on Mars or under the ocean, be able to fly or breathe underwater) answered with real science."
@@ -44,6 +62,7 @@ categories:
     youtube_category: "24"
     footage: ["fork in the road", "ocean", "planet"]
     publish_et: "08:30"
+    daily: false                    # backup series (used when Veo is unavailable)
   - key: mystery
     series: "Mysteries Nobody Can Explain"
     niche: "Real, family-friendly unexplained (or recently solved) mysteries: strange signals from space, undeciphered books, ancient machines, moving rocks, lost cities. Clearly separate what is known from what is unknown; no ghosts, horror or anything scary."
@@ -51,7 +70,7 @@ categories:
     hashtag: "mystery"
     youtube_category: "27"
     footage: ["ancient ruins", "night sky", "old book"]
-    publish_et: "09:00"
+    publish_et: "09:30"
   - key: whatif
     series: "What If...?"
     niche: "Epic science-based 'what if' scenarios answered with real physics, biology and astronomy (what if you could dig through the Earth, what if Earth had rings, what if humans could photosynthesize). Imaginative but accurate, full of wonder, never scary or doom-laden."
@@ -60,6 +79,7 @@ categories:
     youtube_category: "28"
     footage: ["earth from space", "planet", "city skyline"]
     publish_et: "09:30"
+    daily: false
 
 # Optional: put your own topic ideas in topics.txt (one per line).
 # The generator uses those first, then lets the AI pick new topics.

@@ -43,7 +43,8 @@ jobs:
           import json, os, random, re, urllib.request
           from datetime import datetime, timedelta, timezone
           text = open("config.yaml", encoding="utf-8").read()
-          keys = re.findall(r"^\s*-\s*key:\s*(\S+)", text, re.M)
+          blocks = re.split(r"^\s*-\s*key:\s*", text.split("categories:", 1)[1], flags=re.M)[1:]
+          keys = [b.split()[0] for b in blocks if not re.search(r"^\s*daily:\s*false", b, re.M)]
           choice = (os.environ.get("CHOICE") or "one").strip()
           if os.environ["EVENT"] == "schedule" or choice == "missing":
               done = set()

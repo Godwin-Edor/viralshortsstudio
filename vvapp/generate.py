@@ -39,6 +39,16 @@ def _next_topic_from_file(cfg: dict, used: list[str]) -> str | None:
     return None
 
 
+def run_ffmpeg_vertical(src: str, out: str) -> str:
+    """AI clip -> 1080x1920 H.264 with its own (loudness-normalised) sound."""
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", src,
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
+                    "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                    "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out],
+                   check=True)
+    return out
+
+
 def get_category(cfg: dict, key: str | None) -> dict | None:
     cats = cfg.get("categories") or []
     if not key or not cats:
@@ -304,7 +314,19 @@ def main():
         tries = 1 if topic else 3  # a topic the AI reviewer rejects is replaced by a new one
         for t in range(tries):
             try:
-                row = make_video(cfg, topic=topic, offline=args.offline, cat=cat)
+                if cat and cat.get("type") == "ai_video":
+                    from .skit import VeoUnavailable, make_skit
+                    try:
+                        row = make_skit(cfg, cat)
+                    except VeoUnavailable as e:  # no Veo access (billing off): make a normal video instead
+                        print(f"Veo not available ({e}); using the '{cat.get('fallback')}' series instead")
+                        orig = cat
+                        fb = get_category(cfg, orig.get("fallback")) if orig.get("fallback") else None
+                        # keep the original key/slot so a later morning try sees this slot as done
+                        cat = dict(fb or {}, key=orig["key"], publish_et=orig.get("publish_et"))
+                        row = make_video(cfg, topic=topic, offline=args.offline, cat=cat)
+                else:
+                    row = make_video(cfg, topic=topic, offline=args.offline, cat=cat)
             except Exception as e:
                 row = None
                 print(f"Video {i + 1} attempt {t + 1} failed: {e}")
