@@ -221,7 +221,10 @@ def pick_topic(cfg: dict, past_topics: list[str], cat: dict | None = None) -> st
         TOPIC_PROMPT.format(audience=cfg["audience"], past=past, safety=SAFETY_RULES, **_cat(cfg, cat)),
         cfg["gemini_model"], temperature=1.1, label="Topic",
     )
+    if isinstance(data, list):  # some models reply with the list itself
+        data = {"candidates": data}
     cands = data.get("candidates") or [{"topic": data.get("topic", ""), "score": 0}]
+    cands = [c if isinstance(c, dict) else {"topic": str(c), "score": 0} for c in cands]
     cands = [c for c in cands if str(c.get("topic", "")).strip()]
     best = max(cands, key=lambda c: float(c.get("score") or 0))
     print("Topic ideas: " + " | ".join(f"{c.get('score')}: {c['topic'][:60]}" for c in cands))

@@ -76,12 +76,29 @@ def write_skit(cfg: dict, cat: dict, past: list[str]) -> dict:
     return best
 
 
+def _video_models(cfg: dict, key: str) -> list[str]:
+    """Models from config first, then any video model this key can actually use (cheapest-looking first)."""
+    wanted = list(cfg.get("veo", {}).get("models", []))
+    found = []
+    try:
+        r = requests.get(f"{BASE}/models", params={"pageSize": 1000}, headers={"x-goog-api-key": key}, timeout=30)
+        for m in r.json().get("models", []):
+            name = m["name"].split("/", 1)[1]
+            if "predictLongRunning" in m.get("supportedGenerationMethods", []):
+                found.append(name)
+    except Exception as e:
+        print(f"Could not list models: {e}")
+    print(f"Video models available on this key: {found or 'none'}")
+    rank = lambda n: (0 if "lite" in n else 1 if "fast" in n else 2, n)
+    return list(dict.fromkeys([m for m in wanted if m in found] + sorted(found, key=rank)))
+
+
 def veo_clip(cfg: dict, prompt: str, out_path: str) -> str:
     vcfg = cfg.get("veo", {})
     key = env("GEMINI_API_KEY")
     h = {"x-goog-api-key": key, "Content-Type": "application/json"}
     last = ""
-    for model in vcfg.get("models", ["veo-3.1-lite-generate-preview", "veo-3.1-fast-generate-preview"]):
+    for model in _video_models(cfg, key):
         params = {"aspectRatio": "9:16", "resolution": vcfg.get("resolution", "720p"),
                   "durationSeconds": int(vcfg.get("seconds", 8)), "personGeneration": "allow_all"}
         r = requests.post(f"{BASE}/models/{model}:predictLongRunning", headers=h, timeout=60,
@@ -116,7 +133,7 @@ def veo_clip(cfg: dict, prompt: str, out_path: str) -> str:
                 return out_path
         else:
             last = f"{model}: timed out"
-    raise VeoUnavailable(last)  # no access, blocked or timed out: the caller makes a normal video instead
+    raise VeoUnavailable(last or "no video model available on this key")  # no access, blocked or timed out: the caller makes a normal video instead
 
 
 def make_skit(cfg: dict, cat: dict) -> dict:
